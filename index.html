@@ -2,176 +2,34 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<title>Aion 2 Tracker TW</title>
+<title>AION 2 PRO TRACKER</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#0b0f17">
-
-<style>
-:root{
---bg:#0b0f17;--card:#121827;--line:#1f2a44;
---text:#e6e9f0;--muted:#9aa4bf;
---daily:#3fa9f5;--weekly:#b983ff;--raid:#ff6b6b;
---warn:#ff3d3d;--ok:#00e676;
-}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,Segoe UI}
-header{padding:16px;text-align:center;font-weight:600}
-button{background:transparent;border:1px solid var(--line);color:var(--text);
-padding:6px 10px;border-radius:6px;cursor:pointer}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
-gap:16px;padding:16px}
-.card{background:var(--card);border:1px solid var(--line);
-border-radius:14px;padding:14px}
-.task{margin:8px 0}
-.task-line{display:flex;gap:8px;align-items:center}
-.task input{width:18px;height:18px}
-.task.daily input{accent-color:var(--daily)}
-.task.weekly input{accent-color:var(--weekly)}
-.task.raid input{accent-color:var(--raid)}
-.timer{font-size:11px;color:var(--muted);margin-left:26px}
-.warn{color:var(--warn);animation:pulse 1s infinite}
-@keyframes pulse{50%{opacity:.4}}
-.progress{height:6px;background:#0b1220;border-radius:10px;overflow:hidden;margin-top:10px}
-.progress span{display:block;height:100%;background:linear-gradient(90deg,var(--daily),var(--ok))}
-.meta{font-size:12px;color:var(--muted)}
-</style>
+<link rel="stylesheet" href="style.css">
 </head>
-
 <body>
-<header>AION 2 TRACKER · SERVER TAIWAN · GMT+7</header>
 
-<div style="padding:0 16px">
-<button onclick="addChar()">＋ Character</button>
-</div>
+<header>
+  <b>AION 2 PRO</b>
+  <span>GMT +7 · Taiwan</span>
+</header>
 
-<div id="grid" class="grid"></div>
+<nav>
+  <button onclick="addChar()">＋ Character</button>
+  <button onclick="addTask()">＋ Task</button>
+  <button onclick="Notification.requestPermission()">🔔</button>
+</nav>
 
-<script>
-if("serviceWorker" in navigator){
- navigator.serviceWorker.register("sw.js");
-}
+<main id="app"></main>
 
-const STORAGE="aion2_tw_final";
-const TZ=7*60;
+<section class="alarm">
+  <h3>Custom Alarm</h3>
+  <input id="ah" type="number" min="0" max="23" placeholder="HH">
+  <input id="am" type="number" min="0" max="59" placeholder="MM">
+  <input id="al" placeholder="Label">
+  <button onclick="addAlarm()">Add</button>
+  <div id="alarms"></div>
+</section>
 
-const TASKS=[
-{id:"nightmare",label:"Nightmare",type:"daily"},
-{id:"dungeon",label:"Daily Dungeon",type:"daily"},
-{id:"duty",label:"Duty",type:"daily"},
-{id:"shop",label:"Buy Odyle Energy (Shop)",type:"weekly_sun"},
-{id:"craft",label:"Craft Odyle Energy",type:"weekly_wed"},
-{id:"raid",label:"Weekly Raid",type:"weekly_wed",role:"raid"}
-];
-
-let data=JSON.parse(localStorage.getItem(STORAGE))||[];
-
-function now7(){
- const d=new Date();
- return new Date(d.getTime()+(TZ+d.getTimezoneOffset())*60000);
-}
-
-function nextReset(type){
- const n=now7(); let r=new Date(n);
- if(type==="daily"){
-  r.setHours(4,0,0,0);
-  if(n>=r) r.setDate(r.getDate()+1);
- }
- if(type==="weekly_sun"){
-  r.setHours(23,0,0,0);
-  r.setDate(r.getDate()+((7-r.getDay())%7));
- }
- if(type==="weekly_wed"){
-  r.setHours(4,0,0,0);
-  if(r.getDay()===3 && n<r) return r;
-  r.setDate(r.getDate()+(((3-r.getDay()+7)%7)||7));
- }
- return r;
-}
-
-function diffTime(t){
- const s=Math.max(0,(t-now7())/1000);
- const h=Math.floor(s/3600);
- const m=Math.floor((s%3600)/60);
- return `${h}h ${m}m`;
-}
-
-function autoReset(){
- const now=now7().getTime();
-
- data.forEach(c=>{
-  if(!c._lastReset){
-   c._lastReset={daily:0,weeklyWed:0,weeklySun:0};
-  }
-
-  const dR=nextReset("daily").getTime();
-  if(now>=dR && c._lastReset.daily<dR){
-   TASKS.filter(t=>t.type==="daily").forEach(t=>c[t.id]=false);
-   c._lastReset.daily=dR;
-  }
-
-  const wR=nextReset("weekly_wed").getTime();
-  if(now>=wR && c._lastReset.weeklyWed<wR){
-   TASKS.filter(t=>t.type==="weekly_wed").forEach(t=>c[t.id]=false);
-   c._lastReset.weeklyWed=wR;
-  }
-
-  const sR=nextReset("weekly_sun").getTime();
-  if(now>=sR && c._lastReset.weeklySun<sR){
-   TASKS.filter(t=>t.type==="weekly_sun").forEach(t=>c[t.id]=false);
-   c._lastReset.weeklySun=sR;
-  }
- });
- save();
-}
-
-function progress(c){
- return Math.round(TASKS.filter(t=>c[t.id]).length/TASKS.length*100);
-}
-
-function render(){
- autoReset();
- const g=document.getElementById("grid");
- g.innerHTML="";
- data.forEach((c,i)=>{
-  g.innerHTML+=`
-  <div class="card">
-   <h3>${c.name}</h3>
-   <div class="meta">${progress(c)}% completed</div>
-   ${TASKS.map(t=>{
-    const reset=nextReset(t.type);
-    const min=(reset-now7())/60000;
-    return `
-    <div class="task ${t.role||t.type}">
-     <div class="task-line">
-      <input type="checkbox" ${c[t.id]?"checked":""}
-       onchange="toggle(${i},'${t.id}')">
-      ${t.label}
-     </div>
-     <div class="timer ${min<60?'warn':''}">
-      Reset in ${diffTime(reset)}
-     </div>
-    </div>`;
-   }).join("")}
-   <div class="progress"><span style="width:${progress(c)}%"></span></div>
-   <br><button onclick="removeChar(${i})">Remove</button>
-  </div>`;
- });
-}
-
-function toggle(i,id){data[i][id]=!data[i][id];save();render();}
-function addChar(){
- const n=prompt("Character name"); if(!n)return;
- const c={name:n}; TASKS.forEach(t=>c[t.id]=false);
- data.push(c); save(); render();
-}
-function removeChar(i){
- if(confirm("Remove character?")){data.splice(i,1);save();render();}
-}
-function save(){localStorage.setItem(STORAGE,JSON.stringify(data));}
-
-setInterval(render,60000);
-render();
-</script>
+<script src="app.js"></script>
 </body>
 </html>
