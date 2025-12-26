@@ -2,33 +2,225 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AION 2 Tracker</title>
-
+<title>AION 2 Tracker v2</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#0b1220">
-
-<link rel="stylesheet" href="style.css">
+<style>
+:root{
+--bg:#0a0f1c;--card:#12182a;--muted:#7a8199;
+--accent:#ffb300;--ok:#2ee59d;--bad:#ff4d4d;
+}
+*{box-sizing:border-box;font-family:Inter,system-ui}
+body{margin:0;background:var(--bg);color:#eaeaf0}
+header{padding:14px 18px;font-weight:700;font-size:18px}
+main{padding:12px;display:grid;gap:12px}
+.card{background:var(--card);border-radius:14px;padding:14px}
+h3{margin:0 0 8px;font-size:15px;color:var(--accent)}
+.task{display:flex;align-items:center;gap:8px;padding:6px 0}
+.task small{color:var(--muted)}
+.task.expired{color:var(--bad)}
+.task.warn{animation:pulse 1s infinite}
+@keyframes pulse{0%{opacity:1}50%{opacity:.6}100%{opacity:1}}
+input[type=checkbox]{accent-color:var(--accent)}
+.progress{height:5px;background:#1b2136;border-radius:5px}
+.bar{height:100%;background:var(--accent)}
+button{background:#1c2440;color:#fff;border:0;
+padding:6px 10px;border-radius:8px;cursor:pointer}
+button.alt{background:#202a52}
+.panel{display:grid;gap:8px}
+.row{display:flex;gap:6px;align-items:center}
+input,select{background:#0e1428;color:#fff;
+border:1px solid #1f2642;border-radius:6px;padding:4px}
+</style>
 </head>
-
 <body>
-<div class="app">
-  <h1>AION 2 Tracker</h1>
 
-  <div class="card">
-    <h2>Status</h2>
-    <p id="time">--:--</p>
-    <p id="status">Idle</p>
-  </div>
-
-  <button id="notifyBtn">Enable Notification</button>
-</div>
-
-<script src="app.js"></script>
+<header>⚔ AION 2 – Hardcore Tracker v2</header>
+<main id="app"></main>
 
 <script>
-if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("sw.js");
+// ================= TIME (GMT+7) =================
+const TZ=7
+const now=()=>new Date(Date.now()+TZ*3600000)
+
+// ================= SOUND =================
+const ctx=new AudioContext()
+function beep(type="short"){
+ let o=ctx.createOscillator(),g=ctx.createGain()
+ o.connect(g);g.connect(ctx.destination)
+ o.frequency.value=type==="long"?220:440
+ g.gain.value=0.05
+ o.start()
+ setTimeout(()=>o.stop(),type==="double"?200:120)
+ if(type==="double") setTimeout(()=>beep("short"),250)
+}
+
+// ================= STORAGE =================
+const db=JSON.parse(localStorage.getItem("aion2v2"))||{
+ chars:[{name:"Main",tasks:[]}],
+ alarms:[],
+ cron:[]
+}
+const save=()=>localStorage.setItem("aion2v2",JSON.stringify(db))
+
+// ================= DEFAULT TASKS =================
+if(db.chars[0].tasks.length===0){
+ db.chars[0].tasks=[
+ {name:"Nightmare",type:"daily",h:4},
+ {name:"Daily Dungeon",type:"daily",h:4},
+ {name:"Duty",type:"daily",h:4},
+ {name:"Buy Odyle Energy",type:"weekly",d:0,h:23},
+ {name:"Craft Odyle Energy",type:"weekly",d:3,h:4},
+ {name:"Raid",type:"weekly",d:3,h:4}
+ ].map(t=>({...t,done:false}))
+ save()
+}
+
+// ================= RESET =================
+function nextReset(t){
+ let d=now()
+ if(t.type==="daily"){
+  d.setHours(t.h,0,0,0)
+  if(d<now()) d.setDate(d.getDate()+1)
+ }
+ if(t.type==="weekly"){
+  d.setDate(d.getDate()+((t.d-d.getDay()+7)%7))
+  d.setHours(t.h,0,0,0)
+  if(d<now()) d.setDate(d.getDate()+7)
+ }
+ return d
+}
+
+// ================= CRON =================
+function matchCron(expr,date){
+ let m=date.getMinutes()
+ if(expr.includes(",")) return expr.split(",").includes(""+m)
+ if(expr.startsWith("*/")){
+  let n=parseInt(expr.slice(2))
+  return m%n===0
+ }
+ return parseInt(expr)===m
+}
+
+// ================= NOTIFY =================
+if("Notification"in window) Notification.requestPermission()
+function notify(t,m){if(Notification.permission==="granted")new Notification(t,{body:m})}
+
+// ================= RENDER =================
+function render(){
+ const app=document.getElementById("app")
+ app.innerHTML=""
+ db.chars.forEach((c,ci)=>{
+  let card=document.createElement("div")
+  card.className="card"
+  card.innerHTML=`<h3>${c.name}</h3>`
+  let done=c.tasks.filter(t=>t.done).length
+  card.innerHTML+=`<div class="progress"><div class="bar" style="width:${done/c.tasks.length*100}%"></div></div>`
+  c.tasks.forEach((t,ti)=>{
+   let r=nextReset(t)
+   let diff=(r-now())/1000
+   let row=document.createElement("div")
+   row.className="task"+(diff<0&&!t.done?" expired":diff<3600&&!t.done?" warn":"")
+   row.innerHTML=`
+    <input type="checkbox" ${t.done?"checked":""}>
+    <div>
+     <div>${t.name}</div>
+     <small>${Math.max(0,Math.floor(diff/3600))}h ${Math.max(0,Math.floor(diff%3600/60))}m</small>
+    </div>`
+   row.querySelector("input").onchange=e=>{
+    t.done=e.target.checked;save();render()
+   }
+   card.appendChild(row)
+  })
+  app.appendChild(card)
+ })
+
+ // ===== CUSTOM TASK UI =====
+ let custom=document.createElement("div")
+ custom.className="card panel"
+ custom.innerHTML=`
+ <h3>➕ Custom Task</h3>
+ <div class="row">
+  <input id="tn" placeholder="Task name">
+  <select id="tt">
+   <option value="daily">Daily</option>
+   <option value="weekly">Weekly</option>
+  </select>
+  <input id="th" type="number" min="0" max="23" value="4">
+  <select id="td">
+   <option value="0">Sun</option><option value="1">Mon</option>
+   <option value="2">Tue</option><option value="3">Wed</option>
+   <option value="4">Thu</option><option value="5">Fri</option>
+   <option value="6">Sat</option>
+  </select>
+  <button id="addTask">Add</button>
+ </div>`
+ custom.querySelector("#addTask").onclick=()=>{
+  db.chars[0].tasks.push({
+   name:tn.value,type:tt.value,
+   h:+th.value,d:+td.value,done:false
+  })
+  save();render()
+ }
+ app.appendChild(custom)
+
+ // ===== CRON ALARM UI =====
+ let cron=document.createElement("div")
+ cron.className="card panel"
+ cron.innerHTML=`
+ <h3>⏱ Cron Alarm</h3>
+ <div class="row">
+  <input id="ce" placeholder="15,45 or */15">
+  <input id="cn" placeholder="Event name">
+  <button id="addCron">Add</button>
+ </div>`
+ cron.querySelector("#addCron").onclick=()=>{
+  db.cron.push({expr:ce.value,name:cn.value,on:true})
+  save();render()
+ }
+ db.cron.forEach((c,i)=>{
+  let r=document.createElement("div")
+  r.className="row"
+  r.innerHTML=`<small>${c.name} (${c.expr})</small>
+  <button class="alt">❌</button>`
+  r.querySelector("button").onclick=()=>{
+   db.cron.splice(i,1);save();render()
+  }
+  cron.appendChild(r)
+ })
+ app.appendChild(cron)
+}
+render()
+
+// ================= LOOP =================
+setInterval(()=>{
+ db.chars.forEach(c=>{
+  c.tasks.forEach(t=>{
+   let r=nextReset(t)
+   let diff=(r-now())/1000
+   if(diff<3600&&diff>3540&&!t.notified){
+    notify("Reset Soon",t.name)
+    beep("short")
+    t.notified=true
+   }
+   if(now()>r){
+    t.done=false;t.notified=false
+    beep(t.type==="weekly"?"double":"short")
+   }
+  })
+ })
+ db.cron.forEach(c=>{
+  if(matchCron(c.expr,now())){
+   notify("Event",c.name)
+   beep("long")
+  }
+ })
+ save();render()
+},60000)
+
+// ================= PWA =================
+if("serviceWorker"in navigator){
+ navigator.serviceWorker.register("sw.js")
 }
 </script>
 </body>
