@@ -1,16 +1,19 @@
 {
-  "name": "Aion 2 Tracker TW",
-  "short_name": "Aion2",
+  "name": "AION 2 Tracker",
+  "short_name": "AION2",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#0b0f17",
-  "theme_color": "#0b0f17",
-  "description": "Aion 2 Daily & Weekly Tracker (Server Taiwan)",
+  "background_color": "#0b1220",
+  "theme_color": "#0b1220",
   "icons": [
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/5968/5968292.png",
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
       "sizes": "512x512",
       "type": "image/png"
     }
   ]
-}
