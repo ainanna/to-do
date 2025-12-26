@@ -1,0 +1,31 @@
+:root{
+--bg:#0b0f17;--card:#121827;--line:#1e2a44;
+--txt:#e6e9f0;--warn:#ff3d3d;--ok:#00e676;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font-family:Segoe UI}
+header{padding:14px;text-align:center;border-bottom:1px solid var(--line)}
+header span{display:block;font-size:11px;color:#9aa4bf}
+nav{padding:10px;display:flex;gap:8px}
+button,input,select{
+background:#0000;border:1px solid var(--line);
+color:var(--txt);border-radius:6px;padding:6px 10px
+}
+main{
+display:grid;
+grid-template-columns:repeat(auto-fit,minmax(320px,1fr));
+gap:14px;padding:14px
+}
+.card{
+background:var(--card);
+border:1px solid var(--line);
+border-radius:14px;
+padding:14px;
+animation:fade .3s
+}
+@keyframes fade{from{opacity:0;transform:scale(.96)}}
+.task{margin:8px 0}
+.timer{font-size:11px;color:#9aa4bf;margin-left:22px}
+.warn{color:var(--warn);animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.4}}
+.alarm{padding:14px;border-top:1px solid var(--line)}
