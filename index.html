@@ -2,34 +2,34 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<title>AION 2 PRO TRACKER</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AION 2 Tracker</title>
+
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0b1220">
+
 <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
+<div class="app">
+  <h1>AION 2 Tracker</h1>
 
-<header>
-  <b>AION 2 PRO</b>
-  <span>GMT +7 · Taiwan</span>
-</header>
+  <div class="card">
+    <h2>Status</h2>
+    <p id="time">--:--</p>
+    <p id="status">Idle</p>
+  </div>
 
-<nav>
-  <button onclick="addChar()">＋ Character</button>
-  <button onclick="addTask()">＋ Task</button>
-  <button onclick="Notification.requestPermission()">🔔</button>
-</nav>
-
-<main id="app"></main>
-
-<section class="alarm">
-  <h3>Custom Alarm</h3>
-  <input id="ah" type="number" min="0" max="23" placeholder="HH">
-  <input id="am" type="number" min="0" max="59" placeholder="MM">
-  <input id="al" placeholder="Label">
-  <button onclick="addAlarm()">Add</button>
-  <div id="alarms"></div>
-</section>
+  <button id="notifyBtn">Enable Notification</button>
+</div>
 
 <script src="app.js"></script>
+
+<script>
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js");
+}
+</script>
 </body>
 </html>
