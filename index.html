@@ -2,226 +2,607 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<title>AION 2 Tracker v2</title>
-<meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#4fc3f7">
+<title>Daily Task</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <style>
+.task.dragging {
+ opacity: 0.4;
+}
+.task.drag-over {
+ outline: 2px dashed var(--accent);
+}  
+/* ===== MODAL RESET SETTINGS ===== */
+.modal-backdrop{
+ position:fixed;inset:0;
+ background:rgba(0,0,0,.6);
+ display:flex;align-items:center;justify-content:center;
+ z-index:99;
+}
+.modal{
+ width:min(420px,95%);
+ background:var(--card);
+ border-radius:16px;
+ padding:14px;
+}
+.modal h3{
+ margin:0 0 10px;
+ font-size:14px;
+ letter-spacing:.5px;
+}
+.modal h4{
+ margin:8px 0 4px;
+ font-size:11px;
+ letter-spacing:1px;
+}
+.form-row{
+ display:flex;
+ gap:8px;
+ margin-bottom:8px;
+}
+.form-row label{
+ flex:1;
+ font-size:11px;
+ opacity:.8;
+}
+.modal-footer{
+ display:flex;
+ justify-content:flex-end;
+ gap:8px;
+ margin-top:10px;
+}  
 :root{
---bg:#0a0f1c;--card:#12182a;--muted:#7a8199;
---accent:#ffb300;--ok:#2ee59d;--bad:#ff4d4d;
+ --bg:#0b1220;--card:#121b2f;
+ --daily:#1a2a4a;--weekly:#1a1538;--shop:#2a1a1a;
+ --accent:#4fc3f7;--weeklyAccent:#b388ff;--shopAccent:#ffb74d;
+ --danger:#ff5252;--ok:#00e676;--text:#e0e6ff;
 }
 *{box-sizing:border-box;font-family:Inter,system-ui}
-body{margin:0;background:var(--bg);color:#eaeaf0}
-header{padding:14px 18px;font-weight:700;font-size:18px}
-main{padding:12px;display:grid;gap:12px}
-.card{background:var(--card);border-radius:14px;padding:14px}
-h3{margin:0 0 8px;font-size:15px;color:var(--accent)}
-.task{display:flex;align-items:center;gap:8px;padding:6px 0}
-.task small{color:var(--muted)}
-.task.expired{color:var(--bad)}
-.task.warn{animation:pulse 1s infinite}
-@keyframes pulse{0%{opacity:1}50%{opacity:.6}100%{opacity:1}}
-input[type=checkbox]{accent-color:var(--accent)}
-.progress{height:5px;background:#1b2136;border-radius:5px}
-.bar{height:100%;background:var(--accent)}
-button{background:#1c2440;color:#fff;border:0;
-padding:6px 10px;border-radius:8px;cursor:pointer}
-button.alt{background:#202a52}
-.panel{display:grid;gap:8px}
-.row{display:flex;gap:6px;align-items:center}
-input,select{background:#0e1428;color:#fff;
-border:1px solid #1f2642;border-radius:6px;padding:4px}
+body{margin:0;background:var(--bg);color:var(--text)}
+
+header{
+ padding:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center
+}
+select,button{
+ background:var(--card);color:var(--text);
+ border:1px solid #243056;padding:6px 10px;border-radius:6px
+}
+button{cursor:pointer}
+button.primary{background:var(--accent);color:#000}
+
+.grid{
+ display:grid;
+ grid-template-columns:repeat(auto-fill,minmax(330px,1fr));
+ gap:14px;padding:14px
+}
+.card{background:var(--card);border-radius:14px;padding:12px}
+
+.char-header{
+ display:flex;justify-content:space-between;align-items:center
+}
+
+.section{margin-top:10px;border-radius:10px;padding:8px}
+.section.daily{background:var(--daily)}
+.section.weekly{background:var(--weekly)}
+.section.shop{background:var(--shop)}
+
+.section-header{
+ display:flex;justify-content:space-between;align-items:center
+}
+.section h4{
+ margin:4px 0 6px;font-size:12px;letter-spacing:1px;opacity:.85
+}
+.section.daily h4{color:var(--accent)}
+.section.weekly h4{color:var(--weeklyAccent)}
+.section.shop h4{color:var(--shopAccent)}
+
+.task{
+ display:flex;align-items:center;
+ padding:6px 8px;border-radius:6px;margin:4px 0;
+ background:rgba(255,255,255,.03);
+}
+.task.reset-soon{
+ background:rgba(255,82,82,.18);
+ border:1px solid var(--danger);
+}
+.task.reset-now{
+ background:rgba(79,195,247,.14);
+ border:1px solid var(--accent);
+}
+
+.task label{
+ display:flex;align-items:center;gap:6px;
+ cursor:pointer;flex:1
+}
+
+.countdown{font-size:11px;opacity:.8}
+
+.progress-wrap{margin-top:8px}
+.progress-label{font-size:11px;opacity:.8;margin-bottom:4px}
+.progress{
+ height:6px;background:#1c2748;border-radius:4px;overflow:hidden
+}
+.progress span{
+ display:block;height:100%;
+ background:linear-gradient(90deg,var(--ok),var(--accent));
+}
 </style>
 </head>
+
 <body>
 
-<header>⚔ AION 2 – Hardcore Tracker v2</header>
-<main id="app"></main>
+<header>
+ <b>Daily Task</b>
+ <select id="accountSelect"></select>
+ <button onclick="addAccount()">+ Account</button>
+ <button onclick="addCharacter()" class="primary">+ Character</button>
+ <button onclick="openResetSettings()">⚙ Reset Settings</button>
+ <button onclick="resetAllData()" 
+ style="border:1px solid #ff5252;color:#ff5252">
+ Reset Data
+</button>
+</header>
+
+<div id="app" class="grid"></div>
 
 <script>
-// ================= TIME (GMT+7) =================
-const TZ=7
-const now=()=>new Date(Date.now()+TZ*3600000)
+/* ================= DATA ================= */
+const STORE="aion2_tracker_v722";
+const RESET_HIGHLIGHT_MS=10*60*1000;
 
-// ================= SOUND =================
-const ctx=new AudioContext()
-function beep(type="short"){
- let o=ctx.createOscillator(),g=ctx.createGain()
- o.connect(g);g.connect(ctx.destination)
- o.frequency.value=type==="long"?220:440
- g.gain.value=0.05
- o.start()
- setTimeout(()=>o.stop(),type==="double"?200:120)
- if(type==="double") setTimeout(()=>beep("short"),250)
+let data=JSON.parse(localStorage.getItem(STORE))||{
+ accounts:[],activeAccountId:null,
+tasks:[
+ {id:"t1",name:"Nightmare",type:"daily",hour:4,minute:0},
+ {id:"t2",name:"Daily Dungeon",type:"daily",hour:4,minute:0},
+ {id:"t3",name:"Duty",type:"daily",hour:4,minute:0},
+
+ {id:"t4",name:"Raid",type:"weekly",day:3,hour:4,minute:0},
+ {id:"t5",name:"Ascension Trial",type:"weekly",day:3,hour:4,minute:0},
+ {id:"t6",name:"Weekly Scroll",type:"weekly",day:3,hour:4,minute:0},
+ {id:"t7",name:"Abyss Scroll",type:"weekly",day:3,hour:4,minute:0},
+ {id:"t8",name:"Arcanist 5x",type:"weekly",day:3,hour:4,minute:0},
+ {id:"t9",name:"Deus 5x",type:"weekly",day:3,hour:4,minute:0},
+ {id:"t10",name:"Odyle Craft",type:"weekly",day:3,hour:4,minute:0},
+
+ {id:"t11",name:"Odyle Shop",type:"shop",day:0,hour:23,minute:0}
+]
+};
+
+const save=()=>localStorage.setItem(STORE,JSON.stringify(data));
+const now=()=>new Date();
+const active=()=>data.accounts.find(a=>a.id===data.activeAccountId);
+
+/* ================= RESET ENGINE ================= */
+function resetWindowId(t){
+ const d = now();
+ const r = new Date(d);
+
+ // DAILY
+ if(t.type === "daily"){
+  r.setHours(t.hour, t.minute || 0, 0, 0);
+  if(d < r) r.setDate(r.getDate() - 1);
+  return r.toDateString();
+ }
+
+ // WEEKLY & SHOP
+ if(t.type === "weekly" || t.type === "shop"){
+  const diff = (d.getDay() - t.day + 7) % 7;
+  r.setDate(d.getDate() - diff);
+  r.setHours(t.hour, t.minute || 0, 0, 0);
+  if(d < r) r.setDate(r.getDate() - 7);
+  return r.toDateString();
+ }
 }
 
-// ================= STORAGE =================
-const db=JSON.parse(localStorage.getItem("aion2v2"))||{
- chars:[{name:"Main",tasks:[]}],
- alarms:[],
- cron:[]
-}
-const save=()=>localStorage.setItem("aion2v2",JSON.stringify(db))
-
-// ================= DEFAULT TASKS =================
-if(db.chars[0].tasks.length===0){
- db.chars[0].tasks=[
- {name:"Nightmare",type:"daily",h:4},
- {name:"Daily Dungeon",type:"daily",h:4},
- {name:"Duty",type:"daily",h:4},
- {name:"Buy Odyle Energy",type:"weekly",d:0,h:23},
- {name:"Craft Odyle Energy",type:"weekly",d:3,h:4},
- {name:"Raid",type:"weekly",d:3,h:4}
- ].map(t=>({...t,done:false}))
- save()
-}
-
-// ================= RESET =================
 function nextReset(t){
- let d=now()
+ const d=now(),r=new Date(d);
  if(t.type==="daily"){
-  d.setHours(t.h,0,0,0)
-  if(d<now()) d.setDate(d.getDate()+1)
+  r.setHours(t.hour, t.minute || 0, 0, 0);
+  if(d>=r) r.setDate(r.getDate()+1);
+  return r;
  }
- if(t.type==="weekly"){
-  d.setDate(d.getDate()+((t.d-d.getDay()+7)%7))
-  d.setHours(t.h,0,0,0)
-  if(d<now()) d.setDate(d.getDate()+7)
+ const diff=(t.day-d.getDay()+7)%7;
+ r.setDate(d.getDate()+diff);
+ r.setHours(t.hour, t.minute || 0, 0, 0);
+ if(d>=r) r.setDate(r.getDate()+7);
+ return r;
+}
+function autoResetCheck(){
+ let changed=false;
+
+ data.accounts.forEach(acc=>{
+  acc.characters.forEach(c=>{
+   data.tasks.forEach(t=>{
+    const win = resetWindowId(t);
+    const p = c.progress[t.id];
+    if(!p) return;
+
+    if(p.lastReset !== win){
+     c.progress[t.id]={
+      checked:false,
+      lastReset:win,
+      resetAt:Date.now()
+     };
+     changed=true;
+    }
+   });
+  });
+ });
+
+ if(changed){
+  save();
+  render();
  }
- return d
 }
 
-// ================= CRON =================
-function matchCron(expr,date){
- let m=date.getMinutes()
- if(expr.includes(",")) return expr.split(",").includes(""+m)
- if(expr.startsWith("*/")){
-  let n=parseInt(expr.slice(2))
-  return m%n===0
- }
- return parseInt(expr)===m
+/* ================= TIME FORMAT ================= */
+function formatHMS(ms){
+ if(ms<=0) return "RESET";
+ const s=Math.floor(ms/1000);
+ const d=Math.floor(s/86400);
+ const h=Math.floor((s%86400)/3600);
+ const m=Math.floor((s%3600)/60);
+ const sec=s%60;
+ if(d>0) return `${d}d ${h}h ${m}m`;
+ return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(sec).padStart(2,"0")}`;
 }
 
-// ================= NOTIFY =================
-if("Notification"in window) Notification.requestPermission()
-function notify(t,m){if(Notification.permission==="granted")new Notification(t,{body:m})}
+function sectionCountdown(type){
+ let soonest=null;
+ data.tasks.filter(t=>t.type===type).forEach(t=>{
+  const r=nextReset(t);
+  if(!soonest||r<soonest) soonest=r;
+ });
+ return soonest?formatHMS(soonest-now()):"";
+}
 
-// ================= RENDER =================
+/* ================= RENDER ================= */
 function render(){
- const app=document.getElementById("app")
- app.innerHTML=""
- db.chars.forEach((c,ci)=>{
-  let card=document.createElement("div")
-  card.className="card"
-  card.innerHTML=`<h3>${c.name}</h3>`
-  let done=c.tasks.filter(t=>t.done).length
-  card.innerHTML+=`<div class="progress"><div class="bar" style="width:${done/c.tasks.length*100}%"></div></div>`
-  c.tasks.forEach((t,ti)=>{
-   let r=nextReset(t)
-   let diff=(r-now())/1000
-   let row=document.createElement("div")
-   row.className="task"+(diff<0&&!t.done?" expired":diff<3600&&!t.done?" warn":"")
-   row.innerHTML=`
-    <input type="checkbox" ${t.done?"checked":""}>
-    <div>
-     <div>${t.name}</div>
-     <small>${Math.max(0,Math.floor(diff/3600))}h ${Math.max(0,Math.floor(diff%3600/60))}m</small>
-    </div>`
-   row.querySelector("input").onchange=e=>{
-    t.done=e.target.checked;save();render()
-   }
-   card.appendChild(row)
-  })
-  app.appendChild(card)
- })
+data.tasks.forEach(t => t.minute ??= 0);
+ accountSelect.innerHTML="";
+ data.accounts.forEach(a=>accountSelect.append(new Option(a.name,a.id)));
+ accountSelect.value=data.activeAccountId;
+ accountSelect.onchange=e=>{
+  data.activeAccountId=e.target.value;save();render();
+ };
 
- // ===== CUSTOM TASK UI =====
- let custom=document.createElement("div")
- custom.className="card panel"
- custom.innerHTML=`
- <h3>➕ Custom Task</h3>
- <div class="row">
-  <input id="tn" placeholder="Task name">
-  <select id="tt">
-   <option value="daily">Daily</option>
-   <option value="weekly">Weekly</option>
-  </select>
-  <input id="th" type="number" min="0" max="23" value="4">
-  <select id="td">
-   <option value="0">Sun</option><option value="1">Mon</option>
-   <option value="2">Tue</option><option value="3">Wed</option>
-   <option value="4">Thu</option><option value="5">Fri</option>
-   <option value="6">Sat</option>
-  </select>
-  <button id="addTask">Add</button>
- </div>`
- custom.querySelector("#addTask").onclick=()=>{
-  db.chars[0].tasks.push({
-   name:tn.value,type:tt.value,
-   h:+th.value,d:+td.value,done:false
-  })
-  save();render()
- }
- app.appendChild(custom)
+ app.innerHTML="";
+ const acc=active(); if(!acc)return;
 
- // ===== CRON ALARM UI =====
- let cron=document.createElement("div")
- cron.className="card panel"
- cron.innerHTML=`
- <h3>⏱ Cron Alarm</h3>
- <div class="row">
-  <input id="ce" placeholder="15,45 or */15">
-  <input id="cn" placeholder="Event name">
-  <button id="addCron">Add</button>
- </div>`
- cron.querySelector("#addCron").onclick=()=>{
-  db.cron.push({expr:ce.value,name:cn.value,on:true})
-  save();render()
- }
- db.cron.forEach((c,i)=>{
-  let r=document.createElement("div")
-  r.className="row"
-  r.innerHTML=`<small>${c.name} (${c.expr})</small>
-  <button class="alt">❌</button>`
-  r.querySelector("button").onclick=()=>{
-   db.cron.splice(i,1);save();render()
-  }
-  cron.appendChild(r)
- })
- app.appendChild(cron)
+ acc.characters.forEach(c=>{
+  let dDone=0,dTotal=0,wDone=0,wTotal=0,sDone=0,sTotal=0;
+
+  const card=document.createElement("div");
+  card.className="card";
+  card.innerHTML=`
+   <div class="char-header">
+    <b>${c.name}</b>
+    <button onclick="deleteCharacter('${c.id}')" style="
+     background:transparent;
+     border:1px solid #ff5252;
+     color:#ff5252;
+     border-radius:6px;
+     padding:2px 6px;
+     cursor:pointer
+    ">🗑</button>
+   </div>
+  `;
+
+  const daily=document.createElement("div");
+  daily.className="section daily";
+  daily.innerHTML=`<div class="section-header"><h4>DAILY</h4><span class="countdown" data-type="daily">${sectionCountdown("daily")}</span></div>`;
+
+  const weekly=document.createElement("div");
+  weekly.className="section weekly";
+  weekly.innerHTML=`<div class="section-header"><h4>WEEKLY</h4><span class="countdown" data-type="weekly">${sectionCountdown("weekly")}</span></div>`;
+
+  const shop=document.createElement("div");
+  shop.className="section shop";
+  shop.innerHTML=`<div class="section-header"><h4>WEEKLY SHOP</h4><span class="countdown" data-type="shop"
+>${sectionCountdown("shop")}</span></div>`;
+
+  data.tasks.forEach(t=>{
+ c.progress[t.id] ??= {
+ checked:false,
+ lastReset: resetWindowId(t),
+ resetAt: 0
+};
+
+   let sec;
+   if(t.type==="daily"){sec=daily;dTotal++;if(c.progress[t.id].checked)dDone++;}
+   if(t.type==="weekly"){sec=weekly;wTotal++;if(c.progress[t.id].checked)wDone++;}
+   if(t.type==="shop"){sec=shop;sTotal++;if(c.progress[t.id].checked)sDone++;}
+
+const row=document.createElement("div");
+row.className="task";
+row.draggable = true;
+row.dataset.taskId = t.id;
+row.addEventListener("dragstart", e => {
+ row.classList.add("dragging");
+ e.dataTransfer.setData("text/plain", t.id);
+});
+
+row.addEventListener("dragend", () => {
+ row.classList.remove("dragging");
+});
+
+row.addEventListener("dragover", e => {
+ e.preventDefault();
+ row.classList.add("drag-over");
+});
+
+row.addEventListener("dragleave", () => {
+ row.classList.remove("drag-over");
+});
+
+row.addEventListener("drop", e => {
+ e.preventDefault();
+ row.classList.remove("drag-over");
+
+ const fromId = e.dataTransfer.getData("text/plain");
+ const toId   = row.dataset.taskId;
+ if (fromId === toId) return;
+
+ reorderTask(fromId, toId);
+});
+   const label=document.createElement("label");
+   const cb=document.createElement("input");
+   cb.type="checkbox";
+   cb.checked=c.progress[t.id].checked;
+ cb.onchange = () => {
+ c.progress[t.id].checked = cb.checked;
+
+ // PATCH: user action = hapus highlight
+ row.classList.remove("reset-now");
+
+ save();
+ updateProgress(card, c);
+};
+   label.append(cb,t.name);
+   row.append(label);
+
+   const diff=nextReset(t)-now();
+   if(diff>0&&diff<3600000)row.classList.add("reset-soon");
+   if(Date.now()-c.progress[t.id].resetAt<RESET_HIGHLIGHT_MS&&!c.progress[t.id].checked)
+    row.classList.add("reset-now");
+
+   sec.append(row);
+  });
+
+card.append(
+ daily,progressBar("daily",dDone,dTotal),
+ weekly,progressBar("weekly",wDone,wTotal),
+ shop,progressBar("shop",sDone,sTotal)
+);
+
+  app.append(card);
+ });
+
+ save();
 }
-render()
+function reorderTask(fromId, toId){
+ const fromIndex = data.tasks.findIndex(t => t.id === fromId);
+ const toIndex   = data.tasks.findIndex(t => t.id === toId);
+ if(fromIndex < 0 || toIndex < 0) return;
 
-// ================= LOOP =================
-setInterval(()=>{
- db.chars.forEach(c=>{
-  c.tasks.forEach(t=>{
-   let r=nextReset(t)
-   let diff=(r-now())/1000
-   if(diff<3600&&diff>3540&&!t.notified){
-    notify("Reset Soon",t.name)
-    beep("short")
-    t.notified=true
-   }
-   if(now()>r){
-    t.done=false;t.notified=false
-    beep(t.type==="weekly"?"double":"short")
-   }
-  })
- })
- db.cron.forEach(c=>{
-  if(matchCron(c.expr,now())){
-   notify("Event",c.name)
-   beep("long")
+ const [moved] = data.tasks.splice(fromIndex, 1);
+ data.tasks.splice(toIndex, 0, moved);
+
+ save();
+ render();
+}
+function progressBar(type, done, total){
+ const w = document.createElement("div");
+ w.className = `progress-wrap progress-${type}`;
+ w.innerHTML = `
+  <div class="progress-label">${type.toUpperCase()}: ${done}/${total}</div>
+  <div class="progress">
+   <span style="width:${total ? done/total*100 : 0}%"></span>
+  </div>
+ `;
+ return w;
+}
+function updateProgress(card, character){
+ const sections = {
+  daily:{done:0,total:0},
+  weekly:{done:0,total:0},
+  shop:{done:0,total:0}
+ };
+
+ data.tasks.forEach(t=>{
+  const p = character.progress[t.id];
+  if(!p) return;
+  sections[t.type].total++;
+  if(p.checked) sections[t.type].done++;
+ });
+
+ Object.entries(sections).forEach(([type,v])=>{
+  const wrap = card.querySelector(`.progress-${type}`);
+  if(!wrap) return;
+
+  wrap.querySelector(".progress-label").textContent =
+   `${type.toUpperCase()}: ${v.done}/${v.total}`;
+
+  wrap.querySelector(".progress span").style.width =
+   v.total ? (v.done/v.total*100)+"%" : "0%";
+ });
+}
+/* ================= ACCOUNT & CHARACTER ================= */
+function addAccount(){
+ const n=prompt("Nama Account"); if(!n)return;
+ const id="acc"+Date.now();
+ data.accounts.push({id,name:n,characters:[]});
+ data.activeAccountId=id;save();render();
+}
+
+function addCharacter(){
+ const a=active(); if(!a)return;
+ const n=prompt("Nama Character");
+ if(n){
+  a.characters.push({id:"c"+Date.now(),name:n,progress:{}});
+  save();render();
+ }
+}
+
+function deleteCharacter(charId){
+ const acc=active(); if(!acc)return;
+ const char=acc.characters.find(c=>c.id===charId);
+ if(!char) return;
+ if(!confirm(`Hapus character "${char.name}"?`)) return;
+ acc.characters=acc.characters.filter(c=>c.id!==charId);
+ save();render();
+}
+function resetAllData(){
+ if(!confirm("⚠ Hapus SEMUA data tracker?\nAccount, character, progress akan hilang!")) return;
+ localStorage.removeItem(STORE);
+ location.reload();
+}
+/* ================= RESET SETTINGS UI ================= */
+
+function openResetSettings(){
+ const m=document.getElementById("resetModal");
+ m.style.display="block";
+
+ const daily=data.tasks.find(t=>t.type==="daily");
+ const weekly=data.tasks.find(t=>t.type==="weekly");
+ const shop=data.tasks.find(t=>t.type==="shop");
+
+ m.innerHTML=`
+  <div class="modal-backdrop" onclick="closeResetSettings(event)">
+   <div class="modal" onclick="event.stopPropagation()">
+    <h3>⚙ Reset Settings</h3>
+
+    <h4 style="color:var(--accent)">DAILY</h4>
+    <div class="form-row">
+     <label>Reset Hour</label>
+<input type="time" id="dailyHour"
+ value="${String(daily.hour).padStart(2,"0")}:${String(daily.minute||0).padStart(2,"0")}">
+    </div>
+
+<h4 style="color:var(--weeklyAccent)">WEEKLY</h4>
+<div class="form-row">
+ <select id="weeklyDay">${dayOptions(weekly.day)}</select>
+ <input type="time" id="weeklyHour"
+  value="${String(weekly.hour).padStart(2,"0")}:${String(weekly.minute||0).padStart(2,"0")}">
+</div>
+
+<h4 style="color:var(--shopAccent)">WEEKLY SHOP</h4>
+<div class="form-row">
+ <select id="shopDay">${dayOptions(shop.day)}</select>
+ <input type="time" id="shopHour"
+  value="${String(shop.hour).padStart(2,"0")}:${String(shop.minute||0).padStart(2,"0")}">
+</div>
+<h4>APPLY MODE</h4>
+<div class="form-row">
+ <label>
+  <input type="radio" name="applyMode" value="next" checked>
+  Apply mulai reset berikutnya
+ </label>
+</div>
+<div class="form-row">
+ <label style="color:var(--danger)">
+  <input type="radio" name="applyMode" value="now">
+  Apply & reset semua sekarang
+ </label>
+</div>
+    <div class="modal-footer">
+     <button onclick="closeResetSettings()">Cancel</button>
+     <button class="primary" onclick="saveResetSettings()">Save</button>
+    </div>
+   </div>
+  </div>
+ `;
+}
+
+function closeResetSettings(e){
+ if(e && e.target!==e.currentTarget) return;
+ document.getElementById("resetModal").style.display="none";
+}
+
+function dayOptions(selected){
+ const days=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+ return days.map((d,i)=>
+  `<option value="${i}" ${i===selected?"selected":""}>${d}</option>`
+ ).join("");
+}
+
+function saveResetSettings(){
+ const dailyHourEl  = document.getElementById("dailyHour");
+ const weeklyHourEl = document.getElementById("weeklyHour");
+ const shopHourEl   = document.getElementById("shopHour");
+ const weeklyDayEl  = document.getElementById("weeklyDay");
+ const shopDayEl    = document.getElementById("shopDay");
+
+ const mode = document.querySelector('input[name="applyMode"]:checked')?.value || "next";
+
+ // update task reset config
+ data.tasks.forEach(t=>{
+  if(t.type==="daily"){
+   const [h,m]=dailyHourEl.value.split(":");
+   t.hour=+h; t.minute=+m;
   }
- })
- save();render()
-},60000)
+  if(t.type==="weekly"){
+   const [h,m]=weeklyHourEl.value.split(":");
+   t.day=+weeklyDayEl.value;
+   t.hour=+h; t.minute=+m;
+  }
+  if(t.type==="shop"){
+   const [h,m]=shopHourEl.value.split(":");
+   t.day=+shopDayEl.value;
+   t.hour=+h; t.minute=+m;
+  }
+ });
 
-// ================= PWA =================
-if("serviceWorker"in navigator){
- navigator.serviceWorker.register("sw.js")
+ // 🧠 PRO LOGIC
+ data.accounts.forEach(acc=>{
+  acc.characters.forEach(c=>{
+   data.tasks.forEach(t=>{
+    if(!c.progress[t.id]) return;
+
+if(mode === "next"){
+ // JANGAN reset checklist
+ c.progress[t.id].lastReset = resetWindowId(t);
+ c.progress[t.id].resetAt ??= 0;
+}
+
+    if(mode==="now"){
+     // force reset sekarang
+     c.progress[t.id]={
+      checked:false,
+      lastReset:resetWindowId(t),
+      resetAt:Date.now()
+     };
+    }
+   });
+  });
+ });
+
+ save();
+ closeResetSettings();
+ render();
+}
+setInterval(()=>{
+ document.querySelectorAll(".countdown").forEach(el=>{
+  const type = el.dataset.type;
+  el.textContent = sectionCountdown(type);
+ });
+
+ autoResetCheck();
+},1000);
+/* ================= INIT ================= */
+if(!data.accounts.length)addAccount();
+render();
+</script>
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("service-worker.js");
+  });
 }
 </script>
+<div id="resetModal" style="display:none"></div>
 </body>
 </html>
